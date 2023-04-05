@@ -1,0 +1,11 @@
+log:
+  filename: kross.log
+  filemode: a
+  level: DEBUG
+
+etcd:
+  host: "127.0.0.1"
+  port: 2379
+  ca_cert: #only for https, "secret/ca.pem" for example
+  cert_key: #only for https, "secret/etcd-key.pem" for example
+  cert_cert: #only for https, "secret/etcd.pem" for example

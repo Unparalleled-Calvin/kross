@@ -1,11 +1,7 @@
-.git
 __pycache__
 
 test_resources
 
 *.log
 *.json
-
-secret
-
-config.yaml
+*.template
