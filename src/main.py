@@ -1,10 +1,10 @@
 import logging
 
-from kubernetes import client, config, watch
+import kubernetes
+import yaml
 
 import agent
 import handler
-import yaml
 
 
 def load_config(filename="config.yaml"):
@@ -24,9 +24,9 @@ def init_logger(filename=None, filemode=None, format=None, level="DEBUG"):
     logging.basicConfig(filename=filename, filemode=filemode, format=format, datefmt=datefmt, level=level)
 
 def init_kubeAPI():
-    config.load_config() #will load config file or incluster config automatically
-    v1 = client.CoreV1Api()
-    w = watch.Watch()
+    kubernetes.config.load_config() #will load config file or incluster config automatically
+    v1 = kubernetes.client.CoreV1Api()
+    w = kubernetes.watch.Watch()
     return v1, w
 
 def main():

@@ -1,30 +1,70 @@
-from typing import Dict, List
+import json
+from typing import Any, Dict, List
 
 
-class PortItem:
-    def __init__(self, name: str=None, protocol: str=None, port: int=None, targetPort: int=None, raw_object: dict=None):
-        if raw_object is None:
-            self.name = name
-            self.protocol = protocol
-            self.port = port
-            self.targetPort = targetPort
-        else:
-            self.name = raw_object.get("name", None)
-            self.protocol = raw_object["protocol"]
-            self.port = raw_object["port"]
-            self.targetPort = raw_object["targetPort"]
-
-class IPItem:
-    def __init__(self, clusterIP: str):
-        self.clusterIP = clusterIP
-
-
-class ServiceItem:
-    def __init__(self, ports: List[PortItem]=None, clusterIP: IPItem=None, raw_object: Dict=None):
-        if raw_object is None:
-            self.ports = ports
-            self.clusterIP = clusterIP
-        else:
-            self.ports = [PortItem(raw_object=i) for i in raw_object["ports"]]
-            self.clusterIP = IPItem(clusterIP=raw_object["clusterIP"])
+class DictLikeItem:
+    data = {}
+    def __init__(self, data=None):
+        if data is not None:
+            self.data = data
     
+    def __getattr__(self, attr):
+        if attr in self.data:
+            return self.data[attr]
+        else:
+            raise AttributeError(f"'{type(self).__name__}' object has no attribute '{attr}'")
+    
+    def __setattr__(self, attr: str, value: object):
+        if attr in self.data:
+            self.data[attr] = value
+        else:
+            self.__dict__[attr] = value
+
+
+    def encode(self, encoding="utf-8"):
+        return json.dumps(self.data).encode(encoding)
+    
+    @staticmethod
+    def decode(item: str):
+        data = json.loads(item)
+        return DictLikeItem(data=data)
+
+class PortItem(DictLikeItem):
+    def __init__(self, name: str=None, protocol: str=None, port: int=None, data: Any=None):
+        super().__init__()
+        if data is None:
+            self.data["name"] = name
+            self.data["protocol"] = protocol
+            self.data["port"] = port
+        elif isinstance(data, PortItem):
+            self.data.update(data.data)
+        else:
+            self.data["name"] = data["name"]
+            self.data["protocol"] = data["protocol"]
+            self.data["port"] = data["port"]
+    
+    @staticmethod
+    def decode(item):
+        data = json.loads(item)
+        return PortItem(data=data)
+
+class ServiceItem(DictLikeItem):
+    def __init__(self, name: str=None, namespace:str=None, version: str=None, ports: List[PortItem]=None, data: Any=None):
+        super().__init__()
+        if data is None:
+            self.data["name"] = name
+            self.data["namespace"] = namespace
+            self.data["ports"] = ports
+            self.data["version"] = version
+        elif isinstance(data, ServiceItem):
+            self.data.update(data.data)
+        else:
+            self.data["name"] = data["name"]
+            self.data["namespace"] = data["namespace"]
+            self.data["version"] = data["version"]
+            self.data["ports"] = [PortItem(data=port) for port in data["ports"]]
+    
+    @staticmethod
+    def decode(item):
+        data = json.loads(item)
+        return ServiceItem(data=data)
