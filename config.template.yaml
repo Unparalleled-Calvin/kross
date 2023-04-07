@@ -9,3 +9,6 @@ etcd:
   ca_cert: #only for https, "secret/ca.pem" for example
   cert_key: #only for https, "secret/etcd-key.pem" for example
   cert_cert: #only for https, "secret/etcd.pem" for example
+
+ingress:
+  ingress_class: "nginx" #kubernetes.io/ingress.class

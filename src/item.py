@@ -5,8 +5,7 @@ from typing import Any, Dict, List
 class DictLikeItem:
     data = {}
     def __init__(self, data=None):
-        if data is not None:
-            self.data = data
+        self.data = {} if data is None else data
     
     def __getattr__(self, attr):
         if attr in self.data:
@@ -19,7 +18,6 @@ class DictLikeItem:
             self.data[attr] = value
         else:
             self.__dict__[attr] = value
-
 
     def encode(self, encoding="utf-8"):
         return json.dumps(self.data).encode(encoding)
@@ -35,13 +33,13 @@ class PortItem(DictLikeItem):
         if data is None:
             self.data["name"] = name
             self.data["protocol"] = protocol
-            self.data["port"] = port
+            self.data["port"] = int(port)
         elif isinstance(data, PortItem):
             self.data.update(data.data)
         else:
-            self.data["name"] = data["name"]
+            self.data["name"] = data.get("name", None) #name是可选项
             self.data["protocol"] = data["protocol"]
-            self.data["port"] = data["port"]
+            self.data["port"] = int(data["port"])
     
     @staticmethod
     def decode(item):
@@ -54,7 +52,7 @@ class ServiceItem(DictLikeItem):
         if data is None:
             self.data["name"] = name
             self.data["namespace"] = namespace
-            self.data["ports"] = ports
+            self.data["ports"] = [PortItem(data=port) for port in ports]
             self.data["version"] = version
         elif isinstance(data, ServiceItem):
             self.data.update(data.data)
@@ -64,6 +62,13 @@ class ServiceItem(DictLikeItem):
             self.data["version"] = data["version"]
             self.data["ports"] = [PortItem(data=port) for port in data["ports"]]
     
+    def encode(self, encoding="utf-8"):
+        ports = self.ports
+        self.ports = [port.data for port in ports]
+        encoding = json.dumps(self.data).encode(encoding)
+        self.ports = ports
+        return encoding
+
     @staticmethod
     def decode(item):
         data = json.loads(item)
