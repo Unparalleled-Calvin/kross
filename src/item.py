@@ -28,18 +28,22 @@ class DictLikeItem:
         return DictLikeItem(data=data)
 
 class PortItem(DictLikeItem):
-    def __init__(self, name: str=None, protocol: str=None, port: int=None, data: Any=None):
+    def __init__(self, name: str=None, protocol: str=None, port: int=None, nodePort: int=None, data: Any=None):
         super().__init__()
         if data is None:
             self.data["name"] = name
             self.data["protocol"] = protocol
             self.data["port"] = int(port)
+            self.data["nodePort"] = nodePort if nodePort is None else int(nodePort)
         elif isinstance(data, PortItem):
             self.data.update(data.data)
         else:
             self.data["name"] = data.get("name", None) #name是可选项
             self.data["protocol"] = data["protocol"]
             self.data["port"] = int(data["port"])
+
+            nodePort = data.get("nodePort", None)
+            self.data["nodePort"] = nodePort if nodePort is None else int(nodePort)
     
     @staticmethod
     def decode(item):

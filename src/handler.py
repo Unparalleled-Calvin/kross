@@ -38,7 +38,7 @@ class EventHandler:
 
         service = ServiceItem(name=name, namespace=namespace, version=version, ports=ports)
         service = self.modify_svc(service, kross)
-        
+
         if len(service.ports):
             self.handle_func[event_type](service)
 
