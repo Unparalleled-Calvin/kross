@@ -32,10 +32,6 @@ class EventHandler:
         
         logging.info(f"{event_type}, {name}")
 
-        if name == "nginx-svc":
-            with open("c.json", "w") as f:
-                json.dump(event["raw_object"], f)
-
         service = ServiceItem(name=name, namespace=namespace, version=version, ports=ports)
         service = self.modify_svc(service, kross)
 
