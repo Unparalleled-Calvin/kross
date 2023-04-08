@@ -4,7 +4,6 @@ import kubernetes
 import yaml
 
 import handler
-import ingress
 import store
 
 
@@ -27,17 +26,15 @@ def init_logger(filename=None, filemode=None, format=None, level="DEBUG"):
 def init_kubeAPI():
     kubernetes.config.load_config() #will load config file or incluster config automatically
     v1 = kubernetes.client.CoreV1Api()
-    n_v1 = kubernetes.client.NetworkingV1Api()
     w = kubernetes.watch.Watch()
-    return v1, n_v1, w
+    return v1, w
 
 def main():
     kross_config = load_config("config.yaml")
     init_logger(**kross_config["log"])
-    v1, n_v1, w = init_kubeAPI()
+    v1, w = init_kubeAPI()
     etcd_agent = store.EtcdAgent(**kross_config["etcd"])
-    ingress_agent = ingress.IngressAgent(n_v1=n_v1, **kross_config["ingress"])
-    event_handler = handler.EventHandler(store_agent=etcd_agent, ingress_agent=ingress_agent)
+    event_handler = handler.EventHandler(store_agent=etcd_agent)
     for event in w.stream(v1.list_service_for_all_namespaces, watch=True, _continue=False):
         event_handler.handle(event)
 
