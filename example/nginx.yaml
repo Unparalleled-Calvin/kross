@@ -26,7 +26,7 @@ metadata:
     kross: |
       {
         "exposure": {
-          "ports": ["http", 8080]
+          "http.ports": ["http", 8080]
         }
       }
 spec:
@@ -41,6 +41,3 @@ spec:
     targetPort: 80
     protocol: TCP
     name: http-backup
-
-
-

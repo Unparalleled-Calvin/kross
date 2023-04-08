@@ -73,3 +73,10 @@ class ServiceItem(DictLikeItem):
     def decode(item):
         data = json.loads(item)
         return ServiceItem(data=data)
+    
+    def __str__(self):
+        ports = self.ports
+        self.ports = [port.data for port in ports]
+        str = json.dumps(self.data)
+        self.ports = ports
+        return str
