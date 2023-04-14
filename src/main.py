@@ -4,6 +4,7 @@ import kubernetes
 import yaml
 
 import handler
+import peer
 import store
 
 
@@ -26,14 +27,19 @@ def init_logger(filename=None, filemode=None, format=None, level="DEBUG"):
 def init_kubeAPI():
     kubernetes.config.load_config() #will load config file or incluster config automatically
     v1 = kubernetes.client.CoreV1Api()
+    apps_v1 = kubernetes.client.AppsV1Api()
     w = kubernetes.watch.Watch()
-    return v1, w
+    return v1, apps_v1, w
+
+def init_kross(v1: kubernetes.client.CoreV1Api, store_agent: store.StoreAgent, peers: list=None):
+    peer.handle_peers(v1=v1, store_agent=store_agent, peers=peers)
 
 def main():
     kross_config = load_config("config.yaml")
     init_logger(**kross_config["log"])
-    v1, w = init_kubeAPI()
+    v1, apps_v1, w = init_kubeAPI()
     etcd_agent = store.EtcdAgent(**kross_config["etcd"])
+    init_kross(v1=v1, store_agent=etcd_agent, **kross_config["kross"])
     event_handler = handler.EventHandler(store_agent=etcd_agent)
     for event in w.stream(v1.list_service_for_all_namespaces, watch=True, _continue=False):
         event_handler.handle(event)

@@ -2,12 +2,10 @@ import json
 import logging
 from typing import Dict, List, Union
 
-from item import ServiceItem, PortItem
+from item import PortItem, ServiceItem
+from path import svc_path
 from store import StoreAgent
 
-
-def svc_path(service: ServiceItem=None): #records for svc in local cluster
-    return f"/kross/svc/{service.name}"
 
 class EventHandler:
     def __init__(self, store_agent: StoreAgent):
@@ -29,6 +27,9 @@ class EventHandler:
         ports = spec["ports"]
         annotations = metadata.get("annotations", {})
         kross = annotations.get("kross", "{}")
+        
+        if spec["type"] != "NodePort": #only process NodePort Service
+            return 
         
         logging.info(f"{event_type}, {name}")
 

@@ -3,9 +3,15 @@ log:
   filemode: a
   level: DEBUG
 
-etcd:
+etcd: #local etcd
   host: "127.0.0.1"
   port: 2379
   ca_cert: #only for https, "secret/ca.pem" for example
   cert_key: #only for https, "secret/etcd-key.pem" for example
   cert_cert: #only for https, "secret/etcd.pem" for example
+
+kross:
+  peers: #existing kross cluster. if it is the first one, use [].
+  - host: "" #ip or domain
+    port: 37890 #default port
+  
