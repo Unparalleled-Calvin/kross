@@ -6,6 +6,7 @@ import yaml
 import handler
 import peer
 import store
+import sanitize
 
 
 def load_config(filename="config.yaml"):
