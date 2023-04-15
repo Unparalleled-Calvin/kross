@@ -1,12 +1,14 @@
 import logging
+import threading
 
 import kubernetes
 import yaml
 
 import handler
 import peer
-import store
 import sanitize
+import server
+import store
 
 
 def load_config(filename="config.yaml"):
@@ -35,12 +37,17 @@ def init_kubeAPI():
 def init_kross(v1: kubernetes.client.CoreV1Api, store_agent: store.StoreAgent, peers: list=None):
     peer.handle_peers(v1=v1, store_agent=store_agent, peers=peers)
 
+def init_server(store_agent: store.StoreAgent):
+    server_thread = threading.Thread(target=server.start_server, kwargs={"port": 8000, "store_agent": store_agent})
+    server_thread.start()
+
 def main():
     kross_config = load_config("config.yaml")
     init_logger(**kross_config["log"])
     v1, apps_v1, w = init_kubeAPI()
     etcd_agent = store.EtcdAgent(**kross_config["etcd"])
     init_kross(v1=v1, store_agent=etcd_agent, **kross_config["kross"])
+    init_server(store_agent=etcd_agent)
     event_handler = handler.EventHandler(store_agent=etcd_agent)
     for event in w.stream(v1.list_service_for_all_namespaces, watch=True, _continue=False):
         event_handler.handle(event)
