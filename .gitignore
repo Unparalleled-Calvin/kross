@@ -9,3 +9,4 @@ test_resources
 secret
 
 config.yaml
+etcd/etcd.yaml

@@ -1,14 +1,21 @@
 import json
 import logging
+import urllib.request
 
 from kubernetes import client
 
+import path
+import util
 from path import etcd_cluster_info_path
 from store import StoreAgent
 
 
-def get_info_from_peer(host, port):
-    pass
+def get_info_from_peer(host: str, port: int=38000, protocol: str="http"):
+    url = f"{protocol}://{host}:{port}{path.etcd_cluster_info_path()}"
+    
+    info = urllib.request.urlopen(url).read().decode()
+    info = json.loads(info)
+    return info
 
 def get_host_candidate(v1: client.CoreV1Api): #use the first ip in dictionary order
     ips = []
@@ -108,7 +115,6 @@ def create_etcd_pod(v1: client.CoreV1Api, name: str="kross-ectd", namespace: str
 def gen_etcd_initial_command(pod_info: dict, cluster_info: list, initial_cluster_token: str="etcd-cluster",initial_cluster_state: str="new"):
     if cluster_info is None:
         cluster_info = []
-
     initial_cluster = ",".join(map(lambda item: f"{item['name']}=http://{item['host']}:{item['peers_node_port']}", cluster_info))
     
     command = \
@@ -125,9 +131,8 @@ def gen_etcd_initial_command(pod_info: dict, cluster_info: list, initial_cluster
 def store_cluster_info(info: list, store_agent: StoreAgent):
     store_agent.write(etcd_cluster_info_path(), json.dumps(info))
 
-def create_etcd_endpoints(v1: client.CoreV1Api, store_agent: StoreAgent, candidate: str, num: int=1, info: list=None, initial_cluster_state: str="new"):
-    if info is None:
-        info = []
+def recommand_etcd_endpoints(num: int, candidate: str):
+    info = []
     for i in range(num):
         client_node_port = 32379 + i * 2
         peers_node_port = client_node_port + 1
@@ -140,24 +145,49 @@ def create_etcd_endpoints(v1: client.CoreV1Api, store_agent: StoreAgent, candida
             "client_node_port": client_node_port,
             "peers_node_port": peers_node_port,
         })
-    for i in range(-num, 0):
-        pod_info = info[i]
-        command = gen_etcd_initial_command(pod_info=pod_info, cluster_info=info, initial_cluster_state=initial_cluster_state)
-        create_etcd_service(v1=v1, name=pod_info["svc"], client_node_port=pod_info["client_node_port"], peers_node_port=pod_info["peers_node_port"])
-        create_etcd_pod(v1=v1, name=pod_info["name"], command=command)
+    return info
+
+def create_etcd_endpoints(v1: client.CoreV1Api, store_agent: StoreAgent, pods_info: list, info: list=None, initial_cluster_state: str="new", namespace: str="default", peer: dict=None):
+    if info is None:
+        info = []
+    for pod_info in pods_info:
+        info.append(pod_info)
+        if initial_cluster_state == "existing": # needs to join the cluster first
+            join_cluster(pod_info=pod_info, host=peer["host"], port=peer["port"])
+            cluster_info = info
+        else:
+            cluster_info = pods_info
+        command = gen_etcd_initial_command(pod_info=pod_info, cluster_info=cluster_info, initial_cluster_state=initial_cluster_state)
+        create_etcd_service(v1=v1, name=pod_info["svc"], client_node_port=pod_info["client_node_port"], peers_node_port=pod_info["peers_node_port"], namespace=namespace)
+        create_etcd_pod(v1=v1, name=pod_info["name"], command=command, namespace=namespace)
+        util.pod_running_sync(v1=v1, name=pod_info["name"], namespace=namespace)
     store_cluster_info(info=info, store_agent=store_agent)
 
-def join_cluster():
-    pass
+def join_cluster(pod_info: dict, host: str, port: int=38000, protocol: str="http"):
+    url = f"{protocol}://{host}:{port}{path.etcd_cluster_add_member()}"
+    data = json.dumps(pod_info).encode()
+    headers = {'Content-type': 'application/json', 'Content-Length': len(data)}
+    req = urllib.request.Request(url, data=data, headers=headers, method="POST")
+    urllib.request.urlopen(req)
 
-def handle_peers(v1: client.CoreV1Api, store_agent: StoreAgent, peers: list=None):
+
+def handle_peers(v1: client.CoreV1Api, store_agent: StoreAgent, peers: list=None, namespace: str="default") -> dict:
     candidate = get_host_candidate(v1=v1)
     if peers is None or len(peers) == 0:
         if not in_cluster(info=None, store_agent=store_agent, candidate=candidate):
-            create_etcd_endpoints(v1=v1, candidate=candidate, num=2, store_agent=store_agent, info=None, initial_cluster_state="new")
-    # else:
-    #     peer = peers[0] #todo, only use the first one
-    #     info = get_info_from_peer(**peer)
-    #     if not in_cluster(info=info, store_agent=store_agent, candidate=candidate):
-    #         create_etcd_endpoints(v1=v1, candidate=candidate, num=2, store_agent=store_agent, info=info)
-    #         join_cluster()
+            pods_info = recommand_etcd_endpoints(3, candidate=candidate)
+            create_etcd_endpoints(v1=v1, store_agent=store_agent, pods_info=pods_info, info=None, initial_cluster_state="new", namespace=namespace)
+    else:
+        peer = peers[0] #todo, only use the first one now
+        info = get_info_from_peer(**peer)
+        if not in_cluster(info=info, store_agent=store_agent, candidate=candidate):
+            pods_info = recommand_etcd_endpoints(2, candidate=candidate)
+            create_etcd_endpoints(v1=v1, store_agent=store_agent, pods_info=pods_info, info=info, initial_cluster_state="existing", namespace=namespace, peer=peer)
+    
+    _local_info, _ = store_agent.read(etcd_cluster_info_path())
+    local_info = json.loads(_local_info) if _local_info is not None else []
+    for pod_info in local_info:
+        if pod_info["host"] == candidate:
+            return pod_info
+    logging.error(f"local etcd doesn't store info about kross etcd pod in this cluster!")
+    return None

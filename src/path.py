@@ -9,3 +9,6 @@ def svc_path(service: ServiceItem=None): #records for svc in local cluster
 
 def etcd_cluster_info_path(): #records for etcd pods
     return "/kross/etcd/info"
+
+def etcd_cluster_add_member(): #url path
+    return "/kross/etcd/add"

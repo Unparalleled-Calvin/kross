@@ -52,3 +52,10 @@ class EtcdAgent(StoreAgent):
         except Exception as e:
             logging.exception(f"Fail to delete {key}(prefix={prefix}) from etcd.\n%s", e)
             return None
+
+    def add_member(self, urls: str):
+        self.client.add_member(urls)
+
+    @property
+    def members(self):
+        return list(self.client.members)
