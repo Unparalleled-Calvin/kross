@@ -1,15 +1,14 @@
 import json
 import time
-from http.server import BaseHTTPRequestHandler, HTTPServer
+import http.server
 
 import etcd3
 
 import path
 import store
-import util
 
 
-class KrossRequestHandler(BaseHTTPRequestHandler):
+class KrossRequestHandler(http.server.BaseHTTPRequestHandler):
     def __init__(self, local_etcd_agent: store.EtcdAgent, kross_etcd_agent: store.EtcdAgent, *args, **kwargs):
         self.local_etcd_agent = local_etcd_agent
         self.kross_etcd_agent = kross_etcd_agent
@@ -55,5 +54,5 @@ class KrossRequestHandler(BaseHTTPRequestHandler):
 def start_server(local_etcd_agent: store.EtcdAgent, kross_etcd_agent: store.EtcdAgent, port: int=8000):
     def new_handler(*args, **kwargs):
         KrossRequestHandler(local_etcd_agent, kross_etcd_agent, *args, **kwargs)
-    server = HTTPServer(('', port), new_handler)
+    server = http.server.HTTPServer(('', port), new_handler)
     server.serve_forever()

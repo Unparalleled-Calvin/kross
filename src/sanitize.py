@@ -1,5 +1,3 @@
-import logging
-
 import kubernetes
 
 import path

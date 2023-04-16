@@ -1,20 +1,20 @@
 import logging
-from abc import ABC, abstractclassmethod
+import abc
 
 import etcd3
 
 
-class StoreAgent(ABC):
+class StoreAgent(abc.ABC):
 
-    @abstractclassmethod
+    @abc.abstractclassmethod
     def read(self, key, prefix=False):
         pass
     
-    @abstractclassmethod
+    @abc.abstractclassmethod
     def write(self, key, value):
         pass
 
-    @abstractclassmethod
+    @abc.abstractclassmethod
     def delete(self, key, prefix=False):
         pass
 

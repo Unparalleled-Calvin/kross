@@ -1,13 +1,12 @@
-import logging
 import time
 
 import etcd3
-from kubernetes import client
+import kubernetes
 
 import store
 
 
-def pod_running_sync(v1: client.CoreV1Api, name: str, namespace: str="default", intersection: int=0.5, timeout=5):
+def pod_running_sync(v1: kubernetes.client.CoreV1Api, name: str, namespace: str="default", intersection: int=0.5, timeout=5):
     time_cnt = 0
     while time_cnt < timeout and v1.read_namespaced_pod(name=name, namespace=namespace).status.phase != "Running": #sync for pod running
         time.sleep(intersection)
@@ -18,7 +17,7 @@ def etcd_running_sync(host: str, port: int, intersection: int=0.5, timeout=10):
     time_cnt = 0
     while time_cnt < timeout:
         try:
-            client.status()
+            kubernetes.client.status()
         except Exception as e:
             time.sleep(intersection)
             time_cnt += intersection

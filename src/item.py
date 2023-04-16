@@ -1,5 +1,5 @@
 import json
-from typing import Any, Dict, List
+import typing
 
 
 class DictLikeItem:
@@ -28,7 +28,7 @@ class DictLikeItem:
         return DictLikeItem(data=data)
 
 class PortItem(DictLikeItem):
-    def __init__(self, name: str=None, protocol: str=None, port: int=None, nodePort: int=None, data: Any=None):
+    def __init__(self, name: str=None, protocol: str=None, port: int=None, nodePort: int=None, data: typing.Any=None):
         super().__init__()
         if data is None:
             self.data["name"] = name
@@ -51,7 +51,7 @@ class PortItem(DictLikeItem):
         return PortItem(data=data)
 
 class ServiceItem(DictLikeItem):
-    def __init__(self, name: str=None, namespace:str=None, version: str=None, ports: List[PortItem]=None, data: Any=None):
+    def __init__(self, name: str=None, namespace:str=None, version: str=None, ports: typing.List[PortItem]=None, data: typing.Any=None):
         super().__init__()
         if data is None:
             self.data["name"] = name

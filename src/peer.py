@@ -1,13 +1,12 @@
 import json
 import logging
 import urllib.request
-
-from kubernetes import client
+import kubernetes
 
 import path
 import util
-from path import etcd_cluster_info_path
-from store import StoreAgent
+import path
+import store
 
 
 def get_info_from_peer(host: str, port: int=38000, protocol: str="http"):
@@ -17,7 +16,7 @@ def get_info_from_peer(host: str, port: int=38000, protocol: str="http"):
     info = json.loads(info)
     return info
 
-def get_host_candidate(v1: client.CoreV1Api): #use the first ip in dictionary order
+def get_host_candidate(v1: kubernetes.client.CoreV1Api): #use the first ip in dictionary order
     ips = []
     for item in v1.list_node().items:
         for address in item.status.addresses:
@@ -27,9 +26,9 @@ def get_host_candidate(v1: client.CoreV1Api): #use the first ip in dictionary or
     ips.sort()
     return ips[0]
 
-def in_cluster(info: list, store_agent: StoreAgent, candidate:str):
+def in_cluster(info: list, store_agent: store.StoreAgent, candidate:str):
     if info is None:
-        _info, _ = store_agent.read(etcd_cluster_info_path())
+        _info, _ = store_agent.read(path.etcd_cluster_info_path())
         info = json.loads(_info) if _info is not None else []
     ret = False
     for peer in info:
@@ -39,28 +38,28 @@ def in_cluster(info: list, store_agent: StoreAgent, candidate:str):
     logging.debug(f"{candidate} is in cluster.")
     return ret
 
-def create_etcd_service(v1: client.CoreV1Api, name: str="kross-etcd", namespace: str="default", client_node_port: int=32379, peers_node_port: int=32380):
+def create_etcd_service(v1: kubernetes.client.CoreV1Api, name: str="kross-etcd", namespace: str="default", client_node_port: int=32379, peers_node_port: int=32380):
     v1.create_namespaced_service(
         namespace=namespace,
-        body=client.V1Service(
+        body=kubernetes.client.V1Service(
             api_version="v1",
             kind="Service",
-            metadata=client.V1ObjectMeta(
+            metadata=kubernetes.client.V1ObjectMeta(
                 name=name,
                 labels={
                     "app": "kross-etcd",
                 }
             ),
-            spec=client.V1ServiceSpec(
+            spec=kubernetes.client.V1ServiceSpec(
                 ports=[
-                    client.V1ServicePort(
+                    kubernetes.client.V1ServicePort(
                         name="client",
                         node_port=client_node_port,
                         port=2379,
                         target_port=2379,
                         protocol="TCP",
                     ),
-                    client.V1ServicePort(
+                    kubernetes.client.V1ServicePort(
                         name="peers",
                         node_port=peers_node_port,
                         port=2380,
@@ -76,28 +75,28 @@ def create_etcd_service(v1: client.CoreV1Api, name: str="kross-etcd", namespace:
         )
     )
 
-def create_etcd_pod(v1: client.CoreV1Api, name: str="kross-ectd", namespace: str="default", command: str="exit"):
+def create_etcd_pod(v1: kubernetes.client.CoreV1Api, name: str="kross-ectd", namespace: str="default", command: str="exit"):
     v1.create_namespaced_pod(
         namespace=namespace,
-        body=client.V1Pod(
+        body=kubernetes.client.V1Pod(
             api_version="v1",
             kind="Pod",
-            metadata=client.V1ObjectMeta(
+            metadata=kubernetes.client.V1ObjectMeta(
                 name=name,
                 labels={
                     "app": "kross-etcd",
                 }
             ),
-            spec=client.V1PodSpec(
+            spec=kubernetes.client.V1PodSpec(
                 containers=[
-                    client.V1Container(
+                    kubernetes.client.V1Container(
                         image="quay.mirrors.ustc.edu.cn/coreos/etcd",
                         name="etcd",
                         ports=[
-                            client.V1ContainerPort(
+                            kubernetes.client.V1ContainerPort(
                                 container_port=2379,
                             ),
-                            client.V1ContainerPort(
+                            kubernetes.client.V1ContainerPort(
                                 container_port=2380
                             )
                         ],
@@ -128,8 +127,8 @@ def gen_etcd_initial_command(pod_info: dict, cluster_info: list, initial_cluster
         --initial-cluster-state {initial_cluster_state}"
     return command
 
-def store_cluster_info(info: list, store_agent: StoreAgent):
-    store_agent.write(etcd_cluster_info_path(), json.dumps(info))
+def store_cluster_info(info: list, store_agent: store.StoreAgent):
+    store_agent.write(path.etcd_cluster_info_path(), json.dumps(info))
 
 def recommand_etcd_endpoints(num: int, candidate: str):
     info = []
@@ -147,7 +146,7 @@ def recommand_etcd_endpoints(num: int, candidate: str):
         })
     return info
 
-def create_etcd_endpoints(v1: client.CoreV1Api, store_agent: StoreAgent, pods_info: list, info: list=None, initial_cluster_state: str="new", namespace: str="default", peer: dict=None):
+def create_etcd_endpoints(v1: kubernetes.client.CoreV1Api, store_agent: store.StoreAgent, pods_info: list, info: list=None, initial_cluster_state: str="new", namespace: str="default", peer: dict=None):
     if info is None:
         info = []
     for pod_info in pods_info:
@@ -171,7 +170,7 @@ def join_cluster(pod_info: dict, host: str, port: int=38000, protocol: str="http
     urllib.request.urlopen(req)
 
 
-def handle_peers(v1: client.CoreV1Api, store_agent: StoreAgent, peers: list=None, namespace: str="default") -> dict:
+def handle_peers(v1: kubernetes.client.CoreV1Api, store_agent: store.StoreAgent, peers: list=None, namespace: str="default") -> dict:
     candidate = get_host_candidate(v1=v1)
     if peers is None or len(peers) == 0:
         if not in_cluster(info=None, store_agent=store_agent, candidate=candidate):
@@ -184,7 +183,7 @@ def handle_peers(v1: client.CoreV1Api, store_agent: StoreAgent, peers: list=None
             pods_info = recommand_etcd_endpoints(2, candidate=candidate)
             create_etcd_endpoints(v1=v1, store_agent=store_agent, pods_info=pods_info, info=info, initial_cluster_state="existing", namespace=namespace, peer=peer)
     
-    _local_info, _ = store_agent.read(etcd_cluster_info_path())
+    _local_info, _ = store_agent.read(path.etcd_cluster_info_path())
     local_info = json.loads(_local_info) if _local_info is not None else []
     for pod_info in local_info:
         if pod_info["host"] == candidate:
