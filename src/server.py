@@ -51,7 +51,7 @@ class KrossRequestHandler(http.server.BaseHTTPRequestHandler):
             message = "Post received"
             self.wfile.write(bytes(message, "utf8"))
 
-def start_server(local_etcd_agent: store.EtcdAgent, kross_etcd_agent: store.EtcdAgent, port: int=8000):
+def start_server(local_etcd_agent: store.EtcdAgent, kross_etcd_agent: store.EtcdAgent, port: int=7890):
     def new_handler(*args, **kwargs):
         KrossRequestHandler(local_etcd_agent, kross_etcd_agent, *args, **kwargs)
     server = http.server.HTTPServer(('', port), new_handler)

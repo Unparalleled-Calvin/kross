@@ -130,10 +130,10 @@ def gen_etcd_initial_command(pod_info: dict, cluster_info: list, initial_cluster
 def store_cluster_info(info: list, store_agent: store.StoreAgent):
     store_agent.write(path.etcd_cluster_info_path(), json.dumps(info))
 
-def recommand_etcd_endpoints(num: int, candidate: str):
+def recommand_etcd_endpoints(num: int, candidate: str, base_port: int=32379):
     info = []
     for i in range(num):
-        client_node_port = 32379 + i * 2
+        client_node_port = base_port + i * 2
         peers_node_port = client_node_port + 1
         svc_name = f"kross-etcd-{i}"
         etcd_name = f"kross-etcd-{candidate}-{i}"
@@ -170,17 +170,17 @@ def join_cluster(pod_info: dict, host: str, port: int=38000, protocol: str="http
     urllib.request.urlopen(req)
 
 
-def handle_peers(v1: kubernetes.client.CoreV1Api, store_agent: store.StoreAgent, peers: list=None, namespace: str="default") -> dict:
+def handle_peers(v1: kubernetes.client.CoreV1Api, store_agent: store.StoreAgent, peers: list=None, base_port: int=32379, namespace: str="default") -> dict:
     candidate = get_host_candidate(v1=v1)
     if peers is None or len(peers) == 0:
         if not in_cluster(info=None, store_agent=store_agent, candidate=candidate):
-            pods_info = recommand_etcd_endpoints(3, candidate=candidate)
+            pods_info = recommand_etcd_endpoints(3, candidate=candidate, base_port=base_port)
             create_etcd_endpoints(v1=v1, store_agent=store_agent, pods_info=pods_info, info=None, initial_cluster_state="new", namespace=namespace)
     else:
         peer = peers[0] #todo, only use the first one now
         info = get_info_from_peer(**peer)
         if not in_cluster(info=info, store_agent=store_agent, candidate=candidate):
-            pods_info = recommand_etcd_endpoints(2, candidate=candidate)
+            pods_info = recommand_etcd_endpoints(2, candidate=candidate, base_port=base_port)
             create_etcd_endpoints(v1=v1, store_agent=store_agent, pods_info=pods_info, info=info, initial_cluster_state="existing", namespace=namespace, peer=peer)
     
     _local_info, _ = store_agent.read(path.etcd_cluster_info_path())

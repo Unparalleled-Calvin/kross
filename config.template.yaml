@@ -4,14 +4,17 @@ log:
   level: DEBUG
 
 etcd: #local etcd
-  host: "127.0.0.1"
+  host: "127.0.0.1" #please use k8s host IP, 127.0.0.1 represents for contaniner itself but the k8s host machine in runtime  
   port: 2379
   ca_cert: #only for https, "secret/ca.pem" for example
   cert_key: #only for https, "secret/etcd-key.pem" for example
   cert_cert: #only for https, "secret/etcd.pem" for example
 
-kross:
+kross: #kross etcd
   peers: #existing kross cluster. if it is the first one, use [].
   - host: "" #ip or domain
-    port: 37890 #default port
-  
+    port: 30789 #default kross server port
+  base_port: 32379 #etcd pods base port, (32379, 32380) for a pod and then (32381, 32382) etc.
+
+server:
+  port: 7890 #k8s service target port, default node port is 30789 which can be configured in kross.yaml

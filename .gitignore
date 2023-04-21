@@ -10,3 +10,4 @@ secret
 
 config.yaml
 etcd/etcd.yaml
+manifest/kross.yaml
