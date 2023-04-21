@@ -1,6 +1,7 @@
-import json
-import time
 import http.server
+import json
+import logging
+import time
 
 import etcd3
 
@@ -36,13 +37,12 @@ class KrossRequestHandler(http.server.BaseHTTPRequestHandler):
             data = self.rfile.read(length)
             pod_info = json.loads(data.decode())
             peerUrls = [f"http://{pod_info['host']}:{pod_info['peers_node_port']}"]
-            member_num = len(self.kross_etcd_agent.members) #use atomic?
             while True:
                 try:
                     self.kross_etcd_agent.add_member(peerUrls) #actually the pod hasn't been running
                 except etcd3.exceptions.ConnectionFailedError as e:
-                    print("waiting...")
-                    time.sleep(0.5)
+                    logging.info(f"retrying to add etcd member {peerUrls[0]} into cluster...")
+                    time.sleep(1)
                 else:
                     break
             self.send_response(200)

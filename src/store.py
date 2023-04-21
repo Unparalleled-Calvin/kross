@@ -1,5 +1,5 @@
-import logging
 import abc
+import logging
 
 import etcd3
 

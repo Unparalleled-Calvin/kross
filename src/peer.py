@@ -1,12 +1,12 @@
 import json
 import logging
 import urllib.request
+
 import kubernetes
 
 import path
-import util
-import path
 import store
+import util
 
 
 def get_info_from_peer(host: str, port: int=38000, protocol: str="http"):

@@ -37,7 +37,6 @@ def init_kubeAPI():
 
 def init_kross(v1: kubernetes.client.CoreV1Api, store_agent: store.StoreAgent, peers: list=None, base_port: int=32379, namespace: str="default") -> store.EtcdAgent:
     pod_info = peer.handle_peers(v1=v1, store_agent=store_agent, peers=peers, base_port=base_port, namespace=namespace)
-    util.pod_running_sync(v1=v1, name=pod_info["name"], namespace=namespace)
     kross_etcd_agent = store.EtcdAgent(host=pod_info["host"], port=pod_info["client_node_port"])
     return kross_etcd_agent
 
@@ -50,7 +49,7 @@ def main():
     init_logger(**kross_config["log"])
     v1, apps_v1, w = init_kubeAPI()
     local_etcd_agent = store.EtcdAgent(**kross_config["etcd"])
-    # sanitize.sanitize(v1, local_etcd_agent)
+    sanitize.sanitize(v1, local_etcd_agent)
     kross_etcd_agent = init_kross(v1=v1, store_agent=local_etcd_agent, **kross_config["kross"], namespace="default")
     init_server(local_etcd_agent=local_etcd_agent, kross_etcd_agent=kross_etcd_agent, **kross_config["server"])
     event_handler = handler.EventHandler(store_agent=local_etcd_agent)
