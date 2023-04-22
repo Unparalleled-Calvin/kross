@@ -2,6 +2,8 @@ import json
 import logging
 import typing
 
+import kubernetes
+
 import item
 import path
 import store
@@ -31,7 +33,7 @@ class EventHandler:
         if spec["type"] != "NodePort": #only process NodePort Service
             return 
         
-        logging.info(f"{event_type}, {name}")
+        logging.debug(f"[Kross]{event_type} event: {name}")
 
         service = item.ServiceItem(name=name, namespace=namespace, version=version, ports=ports)
         service = self.modify_svc(service, kross)
@@ -45,21 +47,26 @@ class EventHandler:
             ports = kross["exposure"]
         except KeyError:
             ports = []
-            logging.debug(f"Service {service.name} dosen't have proper kross annotation fields. Use '{{}}' instead.")
+            logging.debug(f"[Kross]Service {service.name} dosen't have proper kross annotation fields. Use '{{}}' instead.")
         except json.JSONDecodeError:
             ports = []
-            logging.error(f"Fail to decode kross: {kross} by json format. Use '{{}}' instead.")
+            logging.error(f"[Kross]Fail to decode kross: {kross} by json format. Use '{{}}' instead.")
         service.ports = list(filter(lambda port: port.port in ports or port.name in ports, service.ports))
         return service
 
     def event_add(self, service: item.ServiceItem):
         self.store_agent.write(path.svc_path(service), service)
+        logging.info(f"[Kross]Service {service.name} updated.")
 
     def event_modify(self, service: item.ServiceItem):
-        _service, _ = self.store_agent.read(path.svc_path(service))
-        _service = item.ServiceItem.decode(_service)
         self.store_agent.write(path.svc_path(service), service)
+        logging.info(f"[Kross]Service {service.name} updated.")
     
     def event_delete(self, service: item.ServiceItem):
         self.store_agent.delete(path.svc_path(service))
-    
+        logging.info(f"[Kross]Service {service.name} deleted.")
+
+def start_handler(v1: kubernetes.client.CoreV1Api, w: kubernetes.watch.Watch, store_agent: store.StoreAgent):
+    event_handler = EventHandler(store_agent=store_agent)
+    for event in w.stream(v1.list_service_for_all_namespaces, watch=True, _continue=False):
+        event_handler.handle(event)

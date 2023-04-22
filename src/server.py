@@ -23,16 +23,22 @@ class KrossRequestHandler(http.server.BaseHTTPRequestHandler):
             _message, _ = self.local_etcd_agent.read(path.etcd_cluster_info_path())
             self.wfile.write(_message)
             return
+        if self.path == path.shutdown_path():
+            self.send_response(200)
+            self.send_header('Content-type', 'text/html')
+            self.end_headers()
+            message = "ok, the server will shutdown."
+            self.wfile.write(bytes(message, "utf8"))
+            raise ShutdownException("the server received a shutdown request")
         else:
             self.send_response(200)
             self.send_header('Content-type', 'text/html')
             self.end_headers()
             message = "404"
             self.wfile.write(bytes(message, "utf8"))
-            return
     
     def do_POST(self):
-        if self.path == path.etcd_cluster_add_member():
+        if self.path == path.etcd_cluster_add_member_path():
             length = int(self.headers['content-length'])  # 获取除头部后的请求参数的长度
             data = self.rfile.read(length)
             pod_info = json.loads(data.decode())
@@ -41,7 +47,7 @@ class KrossRequestHandler(http.server.BaseHTTPRequestHandler):
                 try:
                     self.kross_etcd_agent.add_member(peerUrls) #actually the pod hasn't been running
                 except etcd3.exceptions.ConnectionFailedError as e:
-                    logging.info(f"retrying to add etcd member {peerUrls[0]} into cluster...")
+                    logging.info(f"[Kross]retrying to add etcd member {peerUrls[0]} into cluster...")
                     time.sleep(1)
                 else:
                     break
@@ -50,9 +56,27 @@ class KrossRequestHandler(http.server.BaseHTTPRequestHandler):
             self.end_headers()
             message = "Post received"
             self.wfile.write(bytes(message, "utf8"))
+        else:
+            self.send_response(200)
+            self.send_header('Content-type', 'text/html')
+            self.end_headers()
+            message = "404"
+            self.wfile.write(bytes(message, "utf8"))
+
+class ShutdownException(Exception):
+    def __init__(self, reason):
+        super().__init__()
+        self.reason = reason
+
+    def __str__(self):
+        return f"The server shutdown because {self.reason}"
 
 def start_server(local_etcd_agent: store.EtcdAgent, kross_etcd_agent: store.EtcdAgent, port: int=7890):
     def new_handler(*args, **kwargs):
         KrossRequestHandler(local_etcd_agent, kross_etcd_agent, *args, **kwargs)
     server = http.server.HTTPServer(('', port), new_handler)
-    server.serve_forever()
+    try:
+        server.serve_forever()
+    except ShutdownException as e:
+        server.shutdown()
+        logging.info(e)

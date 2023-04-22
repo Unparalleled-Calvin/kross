@@ -6,7 +6,7 @@ import kubernetes
 
 import path
 import store
-import util
+import sync
 
 
 def get_info_from_peer(host: str, port: int=38000, protocol: str="http"):
@@ -35,7 +35,7 @@ def in_cluster(info: list, store_agent: store.StoreAgent, candidate:str):
         if peer["host"] == candidate:
             ret = True
             break
-    logging.debug(f"{candidate} is in cluster.")
+    logging.debug(f"[Kross]{candidate} is in cluster.")
     return ret
 
 def create_etcd_service(v1: kubernetes.client.CoreV1Api, name: str="kross-etcd", namespace: str="default", client_node_port: int=32379, peers_node_port: int=32380):
@@ -159,18 +159,18 @@ def create_etcd_endpoints(v1: kubernetes.client.CoreV1Api, store_agent: store.St
         command = gen_etcd_initial_command(pod_info=pod_info, cluster_info=cluster_info, initial_cluster_state=initial_cluster_state)
         create_etcd_service(v1=v1, name=pod_info["svc"], client_node_port=pod_info["client_node_port"], peers_node_port=pod_info["peers_node_port"], namespace=namespace)
         create_etcd_pod(v1=v1, name=pod_info["name"], command=command, namespace=namespace)
-        util.pod_running_sync(v1=v1, name=pod_info["name"], namespace=namespace)
+        sync.pod_running_sync(v1=v1, name=pod_info["name"], namespace=namespace)
     store_cluster_info(info=info, store_agent=store_agent)
 
 def join_cluster(pod_info: dict, host: str, port: int=38000, protocol: str="http"):
-    url = f"{protocol}://{host}:{port}{path.etcd_cluster_add_member()}"
+    url = f"{protocol}://{host}:{port}{path.etcd_cluster_add_member_path()}"
     data = json.dumps(pod_info).encode()
     headers = {'Content-type': 'application/json', 'Content-Length': len(data)}
     req = urllib.request.Request(url, data=data, headers=headers, method="POST")
     urllib.request.urlopen(req)
 
 
-def handle_peers(v1: kubernetes.client.CoreV1Api, store_agent: store.StoreAgent, peers: list=None, base_port: int=32379, namespace: str="default") -> dict:
+def handle_peers(v1: kubernetes.client.CoreV1Api, store_agent: store.StoreAgent, peers: list=None, base_port: int=32379, namespace: str="default") -> store.StoreAgent:
     candidate = get_host_candidate(v1=v1)
     if peers is None or len(peers) == 0:
         if not in_cluster(info=None, store_agent=store_agent, candidate=candidate):
@@ -187,6 +187,7 @@ def handle_peers(v1: kubernetes.client.CoreV1Api, store_agent: store.StoreAgent,
     local_info = json.loads(_local_info) if _local_info is not None else []
     for pod_info in local_info:
         if pod_info["host"] == candidate:
-            return pod_info
-    logging.error(f"local etcd doesn't store info about kross etcd pod in this cluster!")
+            kross_ectd_agent = store.EtcdAgent(host=pod_info["host"], port=pod_info["client_node_port"])
+            return kross_ectd_agent #normal return value
+    logging.error(f"[Kross]local etcd doesn't store info about kross etcd pod in this cluster!")
     return None

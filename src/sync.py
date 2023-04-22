@@ -18,9 +18,9 @@ def pod_running_sync(v1: kubernetes.client.CoreV1Api, name: str, namespace: str=
         time.sleep(intersection)
         time_cnt += intersection
     if time_cnt < timeout:
-        logging.info(f"pod {name} has been running")
+        logging.info(f"[Kross]pod {name} has been running")
     else:
-        logging.info(f"fail to sync whether pod {name} has been running in the given time.")
+        logging.info(f"[Kross]fail to sync whether pod {name} has been running in the given time.")
 
 def etcd_running_sync(host: str, port: int, intersection: int=1, timeout=20):
     client = etcd3.client(host=host, port=port)
@@ -34,9 +34,9 @@ def etcd_running_sync(host: str, port: int, intersection: int=1, timeout=20):
         else:
             break
     if time_cnt < timeout:
-        logging.info(f"etcd {host}:{port} has been running")
+        logging.info(f"[Kross]etcd {host}:{port} has been running")
     else:
-        logging.info(f"fail to sync whether etcd {host}:{port} has been running in the given time.")
+        logging.info(f"[Kross]fail to sync whether etcd {host}:{port} has been running in the given time.")
 
 def etcd_member_added_sync(etcd_agent: store.EtcdAgent, target_num: int, intersection: int=1, timeout=20):
     time_cnt = 0
@@ -44,9 +44,9 @@ def etcd_member_added_sync(etcd_agent: store.EtcdAgent, target_num: int, interse
         time.sleep(intersection)
         time_cnt += intersection
     if time_cnt < timeout:
-        logging.info(f"member has been added")
+        logging.info(f"[Kross]member has been added")
     else:
-        logging.info(f"fail to sync whether member has been added in the given time.")
+        logging.info(f"[Kross]fail to sync whether member has been added in the given time.")
 
 def resource_deleted_sync(v1: kubernetes.client.CoreV1Api, resource: str, label_selector: str, namespace: str="default", intersection: int=1, timeout=20):
     time_cnt = 0
@@ -61,6 +61,6 @@ def resource_deleted_sync(v1: kubernetes.client.CoreV1Api, resource: str, label_
         else:
             break
     if time_cnt < timeout:
-        logging.info(f"{resource} with {label_selector} has been deleted")
+        logging.info(f"[Kross]{resource} with {label_selector} has been deleted")
     else:
-        logging.info(f"fail to sync whether {resource} with {label_selector} has been deleted in the given time.")
+        logging.info(f"[Kross]fail to sync whether {resource} with {label_selector} has been deleted in the given time.")
