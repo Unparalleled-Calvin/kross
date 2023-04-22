@@ -33,8 +33,8 @@ def init_kubeAPI():
     w = kubernetes.watch.Watch()
     return v1, w
 
-def init_kross(v1: kubernetes.client.CoreV1Api, store_agent: store.StoreAgent, peers: list=None, base_port: int=32379, namespace: str="default") -> store.EtcdAgent:
-    kross_etcd_agent = peer.handle_peers(v1=v1, store_agent=store_agent, peers=peers, base_port=base_port, namespace=namespace)
+def init_kross(v1: kubernetes.client.CoreV1Api, local_etcd_agent: store.EtcdAgent, peers: list=None, base_port: int=32379, namespace: str="default") -> store.EtcdAgent:
+    kross_etcd_agent = peer.handle_peers(v1=v1, local_etcd_agent=local_etcd_agent, peers=peers, base_port=base_port, namespace=namespace)
     return kross_etcd_agent
 
 def init_handler(v1: kubernetes.client.CoreV1Api, w: kubernetes.watch.Watch, store_agent: store.StoreAgent):
@@ -52,7 +52,7 @@ def main():
     v1, w = init_kubeAPI()
     local_etcd_agent = store.EtcdAgent(**kross_config["etcd"])
     sanitize.sanitize(v1, local_etcd_agent)
-    kross_etcd_agent = init_kross(v1=v1, store_agent=local_etcd_agent, **kross_config["kross"], namespace="default")
+    kross_etcd_agent = init_kross(v1=v1, local_etcd_agent=local_etcd_agent, **kross_config["kross"], namespace="default")
     init_handler(v1=v1, w=w, store_agent=kross_etcd_agent)
     server.start_server(local_etcd_agent=local_etcd_agent, kross_etcd_agent=kross_etcd_agent, **kross_config["server"])
     # quit_elegantly()

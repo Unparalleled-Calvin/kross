@@ -7,6 +7,7 @@ import etcd3
 
 import path
 import store
+import sync
 
 
 class KrossRequestHandler(http.server.BaseHTTPRequestHandler):
@@ -15,27 +16,22 @@ class KrossRequestHandler(http.server.BaseHTTPRequestHandler):
         self.kross_etcd_agent = kross_etcd_agent
         super().__init__(*args, **kwargs)
 
+    def reply(self, message: bytes):
+        message = bytes(message, "utf8")
+        self.send_response(200)
+        self.send_header('Content-type', 'text/html')
+        self.end_headers()
+        self.wfile.write(message)
+
     def do_GET(self):
         if self.path == path.etcd_cluster_info_path():
-            self.send_response(200)
-            self.send_header('Content-type', 'text/html')
-            self.end_headers()
             _message, _ = self.local_etcd_agent.read(path.etcd_cluster_info_path())
-            self.wfile.write(_message)
-            return
+            self.reply(_message)
         if self.path == path.shutdown_path():
-            self.send_response(200)
-            self.send_header('Content-type', 'text/html')
-            self.end_headers()
-            message = "ok, the server will shutdown."
-            self.wfile.write(bytes(message, "utf8"))
+            self.reply("ok, the server will shutdown.")
             raise ShutdownException("the server received a shutdown request")
         else:
-            self.send_response(200)
-            self.send_header('Content-type', 'text/html')
-            self.end_headers()
-            message = "404"
-            self.wfile.write(bytes(message, "utf8"))
+            self.reply("404")
     
     def do_POST(self):
         if self.path == path.etcd_cluster_add_member_path():
@@ -43,25 +39,14 @@ class KrossRequestHandler(http.server.BaseHTTPRequestHandler):
             data = self.rfile.read(length)
             pod_info = json.loads(data.decode())
             peerUrls = [f"http://{pod_info['host']}:{pod_info['peers_node_port']}"]
-            while True:
-                try:
-                    self.kross_etcd_agent.add_member(peerUrls) #actually the pod hasn't been running
-                except etcd3.exceptions.ConnectionFailedError as e:
-                    logging.info(f"[Kross]retrying to add etcd member {peerUrls[0]} into cluster...")
-                    time.sleep(1)
-                else:
-                    break
-            self.send_response(200)
-            self.send_header('Content-type', 'text/html')
-            self.end_headers()
-            message = "Post received"
-            self.wfile.write(bytes(message, "utf8"))
+            if sync.acquire_etcd_lock(etcd_agent=self.kross_etcd_agent):
+                sync.etcd_member_added_sync(etcd_agent=self.kross_etcd_agent, peerUrls=peerUrls)
+                sync.release_etcd_lock(etcd_agent=self.kross_etcd_agent)
+                self.reply("ok")
+            else:
+                self.reply("fail")
         else:
-            self.send_response(200)
-            self.send_header('Content-type', 'text/html')
-            self.end_headers()
-            message = "404"
-            self.wfile.write(bytes(message, "utf8"))
+            self.reply("404")
 
 class ShutdownException(Exception):
     def __init__(self, reason):
