@@ -8,6 +8,20 @@ import path
 import store
 import sync
 
+def acquire_lock_by_peer(lock_result_key : str, host: str, port: int=38000, protocol: str="http"):
+    url = f"{protocol}://{host}:{port}{path.etcd_acquire_lock_path()}"
+    data = json.dumps({
+        "lock_result_key": lock_result_key
+    }).encode()
+    headers = {'Content-type': 'application/json', 'Content-Length': len(data)}
+    req = urllib.request.Request(url, data=data, headers=headers, method="POST")
+    sync.sync_template(
+        target="ok",
+        obj=req,
+        process=lambda req: urllib.request.urlopen(req).read().decode(),
+        intersection=1,
+        timeout=None
+    )
 
 def get_info_from_peer(host: str, port: int=38000, protocol: str="http"):
     url = f"{protocol}://{host}:{port}{path.etcd_cluster_info_path()}"
@@ -152,13 +166,13 @@ def get_kross_etcd_agent_from_info(host: str, info: list):
             kross_ectd_agent = store.EtcdAgent(host=pod_info["host"], port=pod_info["client_node_port"])
             return kross_ectd_agent
 
-def create_etcd_endpoints(v1: kubernetes.client.CoreV1Api, local_etcd_agent: store.EtcdAgent, pods_info: list, info: list=None, initial_cluster_state: str="new", namespace: str="default", peer: dict=None):
+def create_etcd_endpoints(v1: kubernetes.client.CoreV1Api, local_etcd_agent: store.EtcdAgent, pods_info: list, lock_result_key: str, info: list=None, initial_cluster_state: str="new", namespace: str="default", peer: dict=None):
     if info is None:
         info = []
     for pod_info in pods_info:
         info.append(pod_info)
         if initial_cluster_state == "existing": # needs to join the cluster first
-            join_cluster(pod_info=pod_info, host=peer["host"], port=peer["port"])
+            join_cluster(lock_result_key=lock_result_key, pod_info=pod_info, host=peer["host"], port=peer["port"])
             cluster_info = info
         else:
             cluster_info = pods_info
@@ -169,38 +183,44 @@ def create_etcd_endpoints(v1: kubernetes.client.CoreV1Api, local_etcd_agent: sto
     store_cluster_info(info=info, store_agent=local_etcd_agent)
     kross_etcd_agent = get_kross_etcd_agent_from_info(host=pods_info[0]["host"], info=info)
     store_cluster_info(info=info, store_agent=kross_etcd_agent)
+    return kross_etcd_agent
 
-def join_cluster(pod_info: dict, host: str, port: int=38000, protocol: str="http"):
+def join_cluster(lock_result_key: str, pod_info: dict, host: str, port: int=38000, protocol: str="http"):
     url = f"{protocol}://{host}:{port}{path.etcd_cluster_add_member_path()}"
-    data = json.dumps(pod_info).encode()
+    data = json.dumps({
+        "pod_info": pod_info,
+        "lock_result_key": lock_result_key
+    }).encode()
     headers = {'Content-type': 'application/json', 'Content-Length': len(data)}
     req = urllib.request.Request(url, data=data, headers=headers, method="POST")
-    urllib.request.urlopen(req)
     sync.sync_template(
         target="ok",
         obj=req,
-        process=lambda req: urllib.request.urlopen(req).read(),
+        process=lambda req: urllib.request.urlopen(req).read().decode(),
         intersection=1,
         timeout=None
     )
 
-
 def handle_peers(v1: kubernetes.client.CoreV1Api, local_etcd_agent: store.EtcdAgent, peers: list=None, base_port: int=32379, namespace: str="default") -> store.StoreAgent:
     candidate = get_host_candidate(v1=v1)
+    lock_result_key = path.etcd_lock_result_path(candidate)
     if peers is None or len(peers) == 0:
         if not in_cluster(info=None, local_etcd_agent=local_etcd_agent, candidate=candidate):
             pods_info = recommand_etcd_endpoints(3, candidate=candidate, base_port=base_port)
-            create_etcd_endpoints(v1=v1, local_etcd_agent=local_etcd_agent, pods_info=pods_info, info=None, initial_cluster_state="new", namespace=namespace)
+            kross_etcd_agent = create_etcd_endpoints(v1=v1, local_etcd_agent=local_etcd_agent, pods_info=pods_info, lock_result_key=lock_result_key, info=None, initial_cluster_state="new", namespace=namespace)
+            sync.init_etcd_lock(etcd_agent=kross_etcd_agent)
     else:
-        peer = peers[0] #todo, only use the first one now
+        peer = peers[0] #only use the first one, maybe can be improved by select the best peer
+        acquire_lock_by_peer(lock_result_key=lock_result_key, **peer)
         info = get_info_from_peer(**peer)
         if not in_cluster(info=info, local_etcd_agent=local_etcd_agent, candidate=candidate):
             pods_info = recommand_etcd_endpoints(2, candidate=candidate, base_port=base_port)
-            create_etcd_endpoints(v1=v1, local_etcd_agent=local_etcd_agent, pods_info=pods_info, info=info, initial_cluster_state="existing", namespace=namespace, peer=peer)
-    
+            kross_etcd_agent = create_etcd_endpoints(v1=v1, local_etcd_agent=local_etcd_agent, pods_info=pods_info, lock_result_key=lock_result_key, info=info, initial_cluster_state="existing", namespace=namespace, peer=peer)
+
     _local_info, _ = local_etcd_agent.read(path.etcd_cluster_info_path())
     local_info = json.loads(_local_info) if _local_info is not None else []
     kross_etcd_agent = get_kross_etcd_agent_from_info(host=candidate, info=local_info)
     if kross_etcd_agent is None:
         logging.error(f"[Kross]local etcd doesn't store info about kross etcd pod in this cluster!")
+    assert(sync.try_to_release_etcd_lock_once(etcd_agent=kross_etcd_agent, lock_result_key=lock_result_key)) #release the lock if it holds
     return kross_etcd_agent

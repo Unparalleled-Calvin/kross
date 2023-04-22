@@ -17,7 +17,8 @@ class KrossRequestHandler(http.server.BaseHTTPRequestHandler):
         super().__init__(*args, **kwargs)
 
     def reply(self, message: bytes):
-        message = bytes(message, "utf8")
+        if isinstance(message, str):
+            message = bytes(message, "utf8")
         self.send_response(200)
         self.send_header('Content-type', 'text/html')
         self.end_headers()
@@ -27,7 +28,7 @@ class KrossRequestHandler(http.server.BaseHTTPRequestHandler):
         if self.path == path.etcd_cluster_info_path():
             _message, _ = self.local_etcd_agent.read(path.etcd_cluster_info_path())
             self.reply(_message)
-        if self.path == path.shutdown_path():
+        elif self.path == path.shutdown_path():
             self.reply("ok, the server will shutdown.")
             raise ShutdownException("the server received a shutdown request")
         else:
@@ -35,16 +36,22 @@ class KrossRequestHandler(http.server.BaseHTTPRequestHandler):
     
     def do_POST(self):
         if self.path == path.etcd_cluster_add_member_path():
-            length = int(self.headers['content-length'])  # 获取除头部后的请求参数的长度
-            data = self.rfile.read(length)
-            pod_info = json.loads(data.decode())
+            length = int(self.headers['content-length'])
+            data = self.rfile.read(length).decode()
+            data = json.loads(data)
+            pod_info, lock_result_key = data["pod_info"], data["lock_result_key"]
             peerUrls = [f"http://{pod_info['host']}:{pod_info['peers_node_port']}"]
-            if sync.acquire_etcd_lock(etcd_agent=self.kross_etcd_agent):
-                sync.etcd_member_added_sync(etcd_agent=self.kross_etcd_agent, peerUrls=peerUrls)
-                sync.release_etcd_lock(etcd_agent=self.kross_etcd_agent)
+            if sync.try_to_acquire_etcd_lock_once(etcd_agent=self.kross_etcd_agent, lock_result_key=lock_result_key):
+                sync.etcd_member_added_sync(etcd_agent=self.kross_etcd_agent, peerUrls=peerUrls) # warning: may takes a lot of time
                 self.reply("ok")
             else:
                 self.reply("fail")
+        elif self.path == path.etcd_acquire_lock_path():
+            length = int(self.headers['content-length'])
+            data = self.rfile.read(length)
+            lock_result_key = json.loads(data.decode())["lock_result_key"]
+            result = sync.try_to_acquire_etcd_lock_once(etcd_agent=self.kross_etcd_agent, lock_result_key=lock_result_key)
+            self.reply("ok" if result else "fail")
         else:
             self.reply("404")
 

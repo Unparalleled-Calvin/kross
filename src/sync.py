@@ -6,6 +6,7 @@ import kubernetes
 import typing
 
 import store
+import path
 
 
 def pod_running_sync(v1: kubernetes.client.CoreV1Api, name: str, namespace: str="default", intersection: int=1, timeout=20):
@@ -80,28 +81,51 @@ def sync_template(target: object, obj: object, process: typing.Callable, interse
         else:
             break
 
-def acquire_etcd_lock(etcd_agent: store.EtcdAgent, lock_key: str="/kross/etcd/lock", result_key: str=None):
+def init_etcd_lock(etcd_agent: store.EtcdAgent, lock_key: str=None):
+    if lock_key is None:
+        lock_key = path.etcd_lock_path()
+    etcd_agent.write(lock_key, "0") #"0" means the lock can be acquired
+
+def try_to_acquire_etcd_lock_once(etcd_agent: store.EtcdAgent, lock_key: str=None, lock_result_key: str=None):
     client = etcd_agent.client
-    if result_key is None:
-        result_key = f"/kross/etcd/lock/result/{client._url}"
+    if lock_key is None:
+        lock_key = path.etcd_lock_path()
+    if lock_result_key is None:
+        lock_result_key = path.etcd_lock_result_path(client._url)
     client.transaction(
         compare=[client.transactions.value(lock_key) == "0"],
-        success=[client.transactions.put(result_key, "1")],
-        failure=[client.transactions.put(result_key, "0")]
-    )
-    _result, _ = etcd_agent.read(result_key)
-    result = _result.decode()
-    return result == "1"
-
-def release_etcd_lock(etcd_agent: store.EtcdAgent, lock_key: str="/kross/etcd/lock", result_key: str=None):
-    client = etcd_agent.client
-    if result_key is None:
-        result_key = f"/kross/etcd/lock/result/{client._url}"
-    client.transaction(
-        compare=[client.transactions.value(result_key) == "1"],
         success=[
-            client.transactions.put(lock_key, "1"),
-            client.transactions.put(result_key, "0")
+            client.transactions.put(lock_result_key, "1"),
+            client.transactions.put(lock_key, "1")
         ],
         failure=[]
     )
+    _result, _ = etcd_agent.read(lock_result_key) #even through lock_key and lock_result_key are both 1 before the transaction, it also works
+    result = _result.decode()
+    success = result == "1"
+    if success:
+        logging.info(f"[Kross]lock acquired in {lock_result_key}")
+    else:
+        logging.ingo(f"[Kross]lock isn't acquired in {lock_result_key} which value is {result}")
+    return success
+
+def try_to_release_etcd_lock_once(etcd_agent: store.EtcdAgent, lock_key: str=None, lock_result_key: str=None):
+    client = etcd_agent.client
+    if lock_key is None:
+        lock_key = path.etcd_lock_path()
+    if lock_result_key is None:
+        lock_result_key = path.etcd_lock_result_path(client._url)
+    client.transaction(
+        compare=[
+            client.transactions.value(lock_key) == "1",
+            client.transactions.value(lock_result_key) == "1"
+        ],
+        success=[
+            client.transactions.put(lock_key, "0"),
+            client.transactions.put(lock_result_key, "0")
+        ],
+        failure=[]
+    )
+    _result, _ = etcd_agent.read(lock_result_key)
+    result = _result.decode() if _result is not None else "0"
+    return result == "0"
