@@ -17,8 +17,8 @@ def acquire_lock_by_peer(lock_result_key : str, host: str, port: int=38000, prot
     req = urllib.request.Request(url, data=data, headers=headers, method="POST")
     sync.sync_template(
         target="ok",
-        obj=req,
-        process=lambda req: urllib.request.urlopen(req).read().decode(),
+        kwargs={"url": req},
+        process=lambda kwargs: urllib.request.urlopen(**kwargs).read().decode(),
         intersection=1,
         timeout=None
     )
@@ -195,8 +195,8 @@ def join_cluster(lock_result_key: str, pod_info: dict, host: str, port: int=3800
     req = urllib.request.Request(url, data=data, headers=headers, method="POST")
     sync.sync_template(
         target="ok",
-        obj=req,
-        process=lambda req: urllib.request.urlopen(req).read().decode(),
+        kwargs={"url": req},
+        process=lambda kwargs: urllib.request.urlopen(**kwargs).read().decode(),
         intersection=1,
         timeout=None
     )

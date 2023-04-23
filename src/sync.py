@@ -72,10 +72,10 @@ def resource_deleted_sync(v1: kubernetes.client.CoreV1Api, resource: str, label_
     else:
         logging.info(f"[Kross]fail to sync whether {resource} with {label_selector} has been deleted in the given time.")
 
-def sync_template(target: object, obj: object, process: typing.Callable, intersection: int=1, timeout=20):
+def sync_template(target: object, kwargs: dict, process: typing.Callable, intersection: int=1, timeout=20):
     time_cnt = 0
     while timeout is None or time_cnt < timeout:
-        if process(obj) != target:
+        if process(**kwargs) != target:
             time.sleep(intersection)
             time_cnt += intersection
         else:
