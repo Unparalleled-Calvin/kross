@@ -1,12 +1,12 @@
 import logging
 import time
+import typing
 
 import etcd3
 import kubernetes
-import typing
 
-import store
 import path
+import store
 
 
 def pod_running_sync(v1: kubernetes.client.CoreV1Api, name: str, namespace: str="default", intersection: int=1, timeout=20):
@@ -86,7 +86,7 @@ def init_etcd_lock(etcd_agent: store.EtcdAgent, lock_key: str=None):
         lock_key = path.etcd_lock_path()
     etcd_agent.write(lock_key, "0") #"0" means the lock can be acquired
 
-def try_to_acquire_etcd_lock_once(etcd_agent: store.EtcdAgent, lock_key: str=None, lock_result_key: str=None):
+def try_to_acquire_etcd_lock_once(etcd_agent: store.EtcdAgent, lock_key: str=None, lock_result_key: str=None) -> bool:
     client = etcd_agent.client
     if lock_key is None:
         lock_key = path.etcd_lock_path()
@@ -109,7 +109,7 @@ def try_to_acquire_etcd_lock_once(etcd_agent: store.EtcdAgent, lock_key: str=Non
         logging.ingo(f"[Kross]lock isn't acquired in {lock_result_key} which value is {result}")
     return success
 
-def try_to_release_etcd_lock_once(etcd_agent: store.EtcdAgent, lock_key: str=None, lock_result_key: str=None):
+def try_to_release_etcd_lock_once(etcd_agent: store.EtcdAgent, lock_key: str=None, lock_result_key: str=None) -> bool:
     client = etcd_agent.client
     if lock_key is None:
         lock_key = path.etcd_lock_path()
@@ -129,3 +129,19 @@ def try_to_release_etcd_lock_once(etcd_agent: store.EtcdAgent, lock_key: str=Non
     _result, _ = etcd_agent.read(lock_result_key)
     result = _result.decode() if _result is not None else "0"
     return result == "0"
+
+def acquire_lock_sync(etcd_agent: store.EtcdAgent, lock_key: str=None, lock_result_key: str=None):
+    sync_template(
+        target=True,
+        kwargs={"etcd_agent": etcd_agent, "lock_key": lock_key, "lock_result_key": lock_result_key},
+        process=try_to_acquire_etcd_lock_once,
+        timeout=None
+    )
+
+def release_lock_sync(etcd_agent: store.EtcdAgent, lock_key: str=None, lock_result_key: str=None):
+    sync_template(
+        target=True,
+        kwargs={"etcd_agent": etcd_agent, "lock_key": lock_key, "lock_result_key": lock_result_key},
+        process=try_to_release_etcd_lock_once,
+        timeout=None
+    )

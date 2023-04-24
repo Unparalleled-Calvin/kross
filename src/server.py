@@ -1,9 +1,8 @@
 import http.server
 import json
 import logging
+import threading
 import time
-
-import etcd3
 
 import path
 import store
@@ -30,7 +29,7 @@ class KrossRequestHandler(http.server.BaseHTTPRequestHandler):
             self.reply(_message)
         elif self.path == path.shutdown_path():
             self.reply("ok, the server will shutdown.")
-            raise ShutdownException("the server received a shutdown request")
+            threading.Thread(target=self.server.shutdown).start()
         else:
             self.reply("404")
     
@@ -52,6 +51,12 @@ class KrossRequestHandler(http.server.BaseHTTPRequestHandler):
             lock_result_key = json.loads(data.decode())["lock_result_key"]
             result = sync.try_to_acquire_etcd_lock_once(etcd_agent=self.kross_etcd_agent, lock_result_key=lock_result_key)
             self.reply("ok" if result else "fail")
+        elif self.path == path.etcd_release_lock_path():
+            length = int(self.headers['content-length'])
+            data = self.rfile.read(length)
+            lock_result_key = json.loads(data.decode())["lock_result_key"]
+            result = sync.try_to_release_etcd_lock_once(etcd_agent=self.kross_etcd_agent, lock_result_key=lock_result_key)
+            self.reply("ok" if result else "fail")
         else:
             self.reply("404")
 
@@ -67,8 +72,5 @@ def start_server(local_etcd_agent: store.EtcdAgent, kross_etcd_agent: store.Etcd
     def new_handler(*args, **kwargs):
         KrossRequestHandler(local_etcd_agent, kross_etcd_agent, *args, **kwargs)
     server = http.server.HTTPServer(('', port), new_handler)
-    try:
-        server.serve_forever()
-    except ShutdownException as e:
-        server.shutdown()
-        logging.info(e)
+    server.serve_forever()
+    logging.info("[Kross]kross server has been stopped.")

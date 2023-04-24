@@ -22,5 +22,8 @@ def etcd_lock_result_path(key: str): #for etcd, lock result
 def etcd_acquire_lock_path(): #for server, acquire lock
     return "/kross/etcd/lock/acquire"
 
+def etcd_release_lock_path(): #for server, release lock
+    return "/kross/etcd/lock/release"
+
 def shutdown_path(): #for server, shutdown the server
     return "/kross/server/shutdown"
