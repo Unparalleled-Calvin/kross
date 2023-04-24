@@ -19,7 +19,7 @@ def acquire_lock_by_peer(lock_result_key : str, host: str, port: int=30789, prot
     sync.sync_template(
         target="ok",
         kwargs={"url": req},
-        process=lambda kwargs: urllib.request.urlopen(**kwargs).read().decode(),
+        process=lambda **kwargs: urllib.request.urlopen(**kwargs).read().decode(),
         intersection=1,
         timeout=None
     )
@@ -34,7 +34,7 @@ def release_lock_by_peer(lock_result_key: str, host: str, port: int=30789, proto
     sync.sync_template(
         target="ok",
         kwargs={"url": req},
-        process=lambda kwargs: urllib.request.urlopen(**kwargs).read().decode(),
+        process=lambda **kwargs: urllib.request.urlopen(**kwargs).read().decode(),
         intersection=1,
         timeout=None
     )
@@ -72,7 +72,7 @@ def in_cluster(info: list, local_etcd_agent: store.EtcdAgent, candidate:str):
         if peer["host"] == candidate:
             ret = True
             break
-    logging.debug(f"[Kross]{candidate} is in cluster.")
+    logging.debug(f"[Kross]Candidate {candidate} is found in the cluster.")
     return ret
 
 def create_etcd_service(v1: kubernetes.client.CoreV1Api, name: str="kross-etcd", namespace: str="default", client_node_port: int=32379, peers_node_port: int=32380):
@@ -220,7 +220,7 @@ def join_cluster(lock_result_key: str, pod_info: dict, host: str, port: int=3078
     sync.sync_template(
         target="ok",
         kwargs={"url": req},
-        process=lambda kwargs: urllib.request.urlopen(**kwargs).read().decode(),
+        process=lambda **kwargs: urllib.request.urlopen(**kwargs).read().decode(),
         intersection=1,
         timeout=None
     )
@@ -248,7 +248,7 @@ def handle_peers(v1: kubernetes.client.CoreV1Api, local_etcd_agent: store.EtcdAg
     local_info = json.loads(_local_info) if _local_info is not None else []
     kross_etcd_agent = get_kross_etcd_agent_from_info(host=candidate, info=local_info)
     if kross_etcd_agent is None:
-        logging.error(f"[Kross]local etcd doesn't store info about kross etcd pod in this cluster!")
+        logging.error(f"[Kross]Local etcd doesn't store info about kross etcd pod in this cluster!")
     sync.release_lock_sync(etcd_agent=kross_etcd_agent, lock_result_key=lock_result_key) #release the lock if it holds
     return kross_etcd_agent
 
@@ -267,7 +267,7 @@ def quit_peers(kross_etcd_agent: store.EtcdAgent):
                 members_to_remove[-1], members_to_remove[i] = members_to_remove[i], members_to_remove[-1]
                 break
         for member in members_to_remove:
-            member.remove()
+            sync.etcd_member_removed_sync(member) # warning: may takes a lot of time
         release_lock_by_peer(lock_result_key=lock_result_key, host=peer_info["host"], port=peer_info["server_port"])
     else:
         pass

@@ -20,9 +20,9 @@ def pod_running_sync(v1: kubernetes.client.CoreV1Api, name: str, namespace: str=
         time.sleep(intersection)
         time_cnt += intersection
     if time_cnt < timeout:
-        logging.info(f"[Kross]pod {name} has been running")
+        logging.info(f"[Kross]Pod {name} has been running")
     else:
-        logging.info(f"[Kross]fail to sync whether pod {name} has been running in the given time.")
+        logging.info(f"[Kross]Fail to sync whether pod {name} has been running in the given time.")
 
 def etcd_running_sync(host: str, port: int, intersection: int=1, timeout=20):
     client = etcd3.client(host=host, port=port)
@@ -36,9 +36,9 @@ def etcd_running_sync(host: str, port: int, intersection: int=1, timeout=20):
         else:
             break
     if time_cnt < timeout:
-        logging.info(f"[Kross]etcd {host}:{port} has been running")
+        logging.info(f"[Kross]Etcd {host}:{port} has been running")
     else:
-        logging.info(f"[Kross]fail to sync whether etcd {host}:{port} has been running in the given time.")
+        logging.info(f"[Kross]Fail to sync whether etcd {host}:{port} has been running in the given time.")
 
 def etcd_member_added_sync(etcd_agent: store.EtcdAgent, peerUrls: list, intersection: int=1, timeout=20):
     time_cnt = 0
@@ -46,14 +46,32 @@ def etcd_member_added_sync(etcd_agent: store.EtcdAgent, peerUrls: list, intersec
         try:
             etcd_agent.add_member(peerUrls) #actually the pod hasn't been running
         except etcd3.exceptions.ConnectionFailedError as e:
-            logging.info(f"[Kross]retrying to add etcd member {peerUrls[0]} into cluster...")
-            time.sleep(1)
+            logging.info(f"[Kross]Retrying to add etcd member {peerUrls[0]} into cluster...")
+            time.sleep(intersection)
+            time_cnt += intersection
         else:
             break
     if time_cnt < timeout:
-        logging.info(f"[Kross]member has been added")
+        logging.info(f"[Kross]Member has been added")
     else:
-        logging.info(f"[Kross]fail to sync whether member has been added in the given time.")
+        logging.info(f"[Kross]Fail to sync whether member has been added in the given time.")
+
+def etcd_member_removed_sync(member: etcd3.Member, intersection: int=1, timeout=20):
+    time_cnt = 0
+    while time_cnt < timeout :
+        try:
+            member.remove() #actually the pod hasn't been running
+        except Exception as e:
+            logging.info(f"[Kross]Retrying to remove etcd member {member.id} from cluster...")
+            logging.debug(e)
+            time.sleep(intersection)
+            time_cnt += intersection
+        else:
+            break
+    if time_cnt < timeout:
+        logging.info(f"[Kross]Member has been removed")
+    else:
+        logging.info(f"[Kross]Fail to sync whether member has been removed in the given time.")
 
 def resource_deleted_sync(v1: kubernetes.client.CoreV1Api, resource: str, label_selector: str, namespace: str="default", intersection: int=1, timeout=20):
     time_cnt = 0
@@ -68,9 +86,9 @@ def resource_deleted_sync(v1: kubernetes.client.CoreV1Api, resource: str, label_
         else:
             break
     if time_cnt < timeout:
-        logging.info(f"[Kross]{resource} with {label_selector} has been deleted")
+        logging.info(f"[Kross]Resources {resource} with {label_selector} have been deleted")
     else:
-        logging.info(f"[Kross]fail to sync whether {resource} with {label_selector} has been deleted in the given time.")
+        logging.info(f"[Kross]Fail to sync whether {resource} with {label_selector} has been deleted in the given time.")
 
 def sync_template(target: object, kwargs: dict, process: typing.Callable, intersection: int=1, timeout=20):
     time_cnt = 0
@@ -104,9 +122,9 @@ def try_to_acquire_etcd_lock_once(etcd_agent: store.EtcdAgent, lock_key: str=Non
     result = _result.decode()
     success = result == "1"
     if success:
-        logging.info(f"[Kross]lock acquired in {lock_result_key}")
+        logging.info(f"[Kross]Lock acquired in {lock_result_key}")
     else:
-        logging.ingo(f"[Kross]lock isn't acquired in {lock_result_key} which value is {result}")
+        logging.ingo(f"[Kross]Lock isn't acquired in {lock_result_key} which value is {result}")
     return success
 
 def try_to_release_etcd_lock_once(etcd_agent: store.EtcdAgent, lock_key: str=None, lock_result_key: str=None) -> bool:

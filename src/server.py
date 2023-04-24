@@ -73,4 +73,4 @@ def start_server(local_etcd_agent: store.EtcdAgent, kross_etcd_agent: store.Etcd
         KrossRequestHandler(local_etcd_agent, kross_etcd_agent, *args, **kwargs)
     server = http.server.HTTPServer(('', port), new_handler)
     server.serve_forever()
-    logging.info("[Kross]kross server has been stopped.")
+    logging.info("[Kross]Kross server has been stopped.")

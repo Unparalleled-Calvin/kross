@@ -35,17 +35,20 @@ def init_kubeAPI():
 
 def init_kross(v1: kubernetes.client.CoreV1Api, local_etcd_agent: store.EtcdAgent, peers: list=None, base_port: int=32379, namespace: str="default", server_port: int=7890) -> store.EtcdAgent:
     kross_etcd_agent = peer.handle_peers(v1=v1, local_etcd_agent=local_etcd_agent, peers=peers, base_port=base_port, namespace=namespace, server_port=server_port)
+    logging.info("[Kross]Kross etcd pods have been initialized.")
     return kross_etcd_agent
 
 def init_handler(v1: kubernetes.client.CoreV1Api, w: kubernetes.watch.Watch, store_agent: store.StoreAgent):
     handler_process = multiprocessing.Process(target=handler.start_handler, kwargs={"v1": v1, "w": w, "store_agent": store_agent})
     handler_process.start()
+    logging.info("[Kross]Kross server have been initialized.")
     return handler_process
 
 def quit_elegantly(handler_process: multiprocessing.Process, v1: kubernetes.client.CoreV1Api, local_etcd_agent: store.EtcdAgent, kross_etcd_agent: store.EtcdAgent, namespace: str="default"):
     peer.quit_peers(kross_etcd_agent=kross_etcd_agent)
     handler_process.terminate()
     sanitize.sanitize(v1=v1, store_agent=local_etcd_agent, namespace=namespace)
+    logging.info("[Kross]Related resources have been sanitized.")
 
 def main():
     kross_config = load_config("config.yaml")
