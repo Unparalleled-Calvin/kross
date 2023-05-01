@@ -38,8 +38,7 @@ class EventHandler:
         service = item.ServiceItem(name=name, namespace=namespace, version=version, ports=ports)
         service = self.modify_svc(service, kross)
 
-        if len(service.ports):
-            self.handle_func[event_type](service)
+        self.handle_func[event_type](service)
 
     def modify_svc(self, service: item.ServiceItem, kross: str): #select exposed ports and modify the protocol
         try:
@@ -55,12 +54,17 @@ class EventHandler:
         return service
 
     def event_add(self, service: item.ServiceItem):
-        self.store_agent.write(path.svc_path(service), service)
-        logging.info(f"[Kross]Service {service.name} updated.")
+        if len(service.ports) > 0:
+            self.store_agent.write(path.svc_path(service), service)
+            logging.info(f"[Kross]Service {service.name} updated.")
 
     def event_modify(self, service: item.ServiceItem):
-        self.store_agent.write(path.svc_path(service), service)
-        logging.info(f"[Kross]Service {service.name} updated.")
+        if len(service.ports) > 0:       
+            self.store_agent.write(path.svc_path(service), service)
+            logging.info(f"[Kross]Service {service.name} updated.")
+        else:
+            self.store_agent.delete(path.svc_path(service))
+            logging.info(f"[Kross]Service {service.name} deleted.")
     
     def event_delete(self, service: item.ServiceItem):
         self.store_agent.delete(path.svc_path(service))
