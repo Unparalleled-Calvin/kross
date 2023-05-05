@@ -41,7 +41,7 @@ def init_kross(v1: kubernetes.client.CoreV1Api, local_etcd_agent: store.EtcdAgen
 def init_handler(v1: kubernetes.client.CoreV1Api, w: kubernetes.watch.Watch, store_agent: store.StoreAgent):
     handler_process = multiprocessing.Process(target=handler.start_handler, kwargs={"v1": v1, "w": w, "store_agent": store_agent})
     handler_process.start()
-    logging.info("[Kross]Kross server have been initialized.")
+    logging.info("[Kross]Kross handler have been initialized.")
     return handler_process
 
 def quit_elegantly(handler_process: multiprocessing.Process, v1: kubernetes.client.CoreV1Api, local_etcd_agent: store.EtcdAgent, kross_etcd_agent: store.EtcdAgent, namespace: str="default"):
