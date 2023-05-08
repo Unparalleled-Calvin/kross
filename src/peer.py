@@ -75,7 +75,7 @@ def in_cluster(info: list, local_etcd_agent: store.EtcdAgent, candidate:str):
     logging.debug(f"[Kross]Candidate {candidate} is found in the cluster.")
     return ret
 
-def create_etcd_service(v1: kubernetes.client.CoreV1Api, name: str="kross-etcd", namespace: str="default", client_node_port: int=32379, peers_node_port: int=32380):
+def create_etcd_service(v1: kubernetes.client.CoreV1Api, name: str="kross-etcd", app_label:str="kross-etcd-0", namespace: str="default", client_node_port: int=32379, peers_node_port: int=32380):
     v1.create_namespaced_service(
         namespace=namespace,
         body=kubernetes.client.V1Service(
@@ -106,13 +106,13 @@ def create_etcd_service(v1: kubernetes.client.CoreV1Api, name: str="kross-etcd",
                 ],
                 type="NodePort",
                 selector={
-                    "app": "kross-etcd",
+                    "app_label": app_label,
                 }
             )
         )
     )
 
-def create_etcd_pod(v1: kubernetes.client.CoreV1Api, name: str="kross-ectd", namespace: str="default", command: str="exit"):
+def create_etcd_pod(v1: kubernetes.client.CoreV1Api, name: str="kross-ectd", app_label:str="kross-etcd-0", namespace: str="default", command: str="exit"):
     v1.create_namespaced_pod(
         namespace=namespace,
         body=kubernetes.client.V1Pod(
@@ -122,6 +122,7 @@ def create_etcd_pod(v1: kubernetes.client.CoreV1Api, name: str="kross-ectd", nam
                 name=name,
                 labels={
                     "app": "kross-etcd",
+                    "app_label": app_label,
                 }
             ),
             spec=kubernetes.client.V1PodSpec(
@@ -172,12 +173,14 @@ def recommand_etcd_endpoints(num: int, candidate: str, base_port: int=32379, ser
     for i in range(num):
         client_node_port = base_port + i * 2
         peers_node_port = client_node_port + 1
-        svc_name = f"kross-etcd-{i}"
         etcd_name = f"kross-etcd-{candidate}-{i}"
+        svc_name = f"kross-etcd-{i}"
+        app_label = f"kross-etcd-{i}"
         info.append({
             "name": etcd_name,
             "svc": svc_name,
             "host": candidate,
+            "app_label": app_label,
             "client_node_port": client_node_port,
             "peers_node_port": peers_node_port,
             "server_port": server_port,
@@ -201,8 +204,8 @@ def create_etcd_endpoints(v1: kubernetes.client.CoreV1Api, local_etcd_agent: sto
         else:
             cluster_info = pods_info
         command = gen_etcd_initial_command(pod_info=pod_info, cluster_info=cluster_info, initial_cluster_state=initial_cluster_state)
-        create_etcd_service(v1=v1, name=pod_info["svc"], client_node_port=pod_info["client_node_port"], peers_node_port=pod_info["peers_node_port"], namespace=namespace)
-        create_etcd_pod(v1=v1, name=pod_info["name"], command=command, namespace=namespace)
+        create_etcd_service(v1=v1, name=pod_info["svc"], app_label=pod_info["app_label"], client_node_port=pod_info["client_node_port"], peers_node_port=pod_info["peers_node_port"], namespace=namespace)
+        create_etcd_pod(v1=v1, name=pod_info["name"], app_label=pod_info["app_label"], command=command, namespace=namespace)
         sync.pod_running_sync(v1=v1, name=pod_info["name"], namespace=namespace)
     store_cluster_info(info=info, store_agent=local_etcd_agent)
     kross_etcd_agent = get_kross_etcd_agent_from_info(host=pods_info[0]["host"], info=info)
