@@ -163,3 +163,17 @@ def release_lock_sync(etcd_agent: store.EtcdAgent, lock_key: str=None, lock_resu
         process=try_to_release_etcd_lock_once,
         timeout=None
     )
+
+def write_available_sync(etcd_agent: store.EtcdAgent, intersection: int=1, timeout=20):
+    time_cnt = 0
+    time_cnt = 0
+    while timeout is None or time_cnt < timeout:
+        if etcd_agent.write("test", "test") == None:
+            time.sleep(intersection)
+            time_cnt += intersection
+        else:
+            break
+    if time_cnt < timeout:
+        logging.info(f"[Kross]Etcd agent is writable.")
+    else:
+        logging.info(f"[Kross]Fail to sync whether etcd agent is writable in the given time.")

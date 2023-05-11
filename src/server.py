@@ -1,8 +1,8 @@
 import http.server
 import json
 import logging
+import pathlib
 import threading
-import time
 
 import path
 import store
@@ -30,6 +30,14 @@ class KrossRequestHandler(http.server.BaseHTTPRequestHandler):
         elif self.path == path.shutdown_path():
             self.reply("ok, the server will shutdown.")
             threading.Thread(target=self.server.shutdown).start()
+        elif self.path.startswith(path.svc_info_path()):
+            data = {}
+            for value, metadata in self.kross_etcd_agent.read(self.path, prefix=True):
+                key = metadata.key.decode()
+                host = pathlib.Path(key).name
+                value = json.loads(value)
+                data[host] = value
+            self.reply(json.dumps(data))
         else:
             self.reply("404")
     

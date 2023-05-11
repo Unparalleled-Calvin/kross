@@ -32,7 +32,7 @@ class EtcdAgent(StoreAgent):
     def read(self, key: str, prefix: bool=False):
         try:
             if prefix:
-                return self.client.get_prefix(prefix)
+                return self.client.get_prefix(key)
             else:
                 return self.client.get(key)
         except Exception as e:
