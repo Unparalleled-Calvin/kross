@@ -4,8 +4,10 @@ import item
 in cluster etcd
 """
 
-def svc_path(service: item.ServiceItem, host: str): #for etcd, records for svc in local cluster
-    return f"/kross/svc/{service.name}/{host}" #for etcd
+def svc_path(service: str, host: str): #for etcd, records for svc
+    if host is None:
+        return f"/kross/svc/{service}"
+    return f"/kross/svc/{service}/{host}" #for etcd
 
 def svc_info_path(): #for server
     return "/kross/svc"

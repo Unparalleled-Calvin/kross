@@ -1,5 +1,6 @@
 import json
 import logging
+import pathlib
 import urllib.request
 
 import kubernetes
@@ -45,6 +46,14 @@ def get_info_from_peer(host: str, port: int=30789, protocol: str="http"):
     info = urllib.request.urlopen(url).read().decode()
     info = json.loads(info)
     return info
+
+def get_hosts(v1: kubernetes.client.CoreV1Api):
+    ips = []
+    for item in v1.list_node().items:
+        for address in item.status.addresses:
+            if address.type == "InternalIP":
+                ips.append(address.address)
+    return ips
 
 def get_host_candidate(v1: kubernetes.client.CoreV1Api): #use the first ip in dictionary order
     ips = []
@@ -255,8 +264,16 @@ def handle_peers(v1: kubernetes.client.CoreV1Api, local_etcd_agent: store.EtcdAg
     sync.release_lock_sync(etcd_agent=kross_etcd_agent, lock_result_key=lock_result_key) #release the lock if it holds
     return kross_etcd_agent
 
-def quit_peers(kross_etcd_agent: store.EtcdAgent):
+def quit_peers(v1: kubernetes.client.CoreV1Api, kross_etcd_agent: store.EtcdAgent, local_etcd_agent: store.EtcdAgent):
     sync.acquire_lock_sync(etcd_agent=kross_etcd_agent, lock_result_key=lock_result_key)
+    svcs = []
+    for _, metadata in local_etcd_agent.read("/kross/svc", True):
+        key = metadata.key.decode()
+        svcs.append(pathlib.Path(key).name)
+    hosts = get_hosts(v1=v1)
+    for svc in svcs:
+        for host in hosts:
+            kross_etcd_agent.delete(path.svc_path(svc, host))
     _info, _ = kross_etcd_agent.read(path.etcd_cluster_info_path())
     info = json.loads(_info)
     peerurls_to_remove = list(map(lambda pod_info: f"http://{pod_info['host']}:{pod_info['peers_node_port']}", filter(lambda pod_info: pod_info["host"] == candidate, info)))

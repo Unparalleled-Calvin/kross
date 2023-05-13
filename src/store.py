@@ -48,7 +48,10 @@ class EtcdAgent(StoreAgent):
 
     def delete(self, key: str, prefix:bool=False):
         try:
-            return self.client.delete(key, prefix, True)
+            if prefix:
+                return self.client.delete_prefix(key)
+            else:
+                return self.client.delete(key, prefix, True)
         except Exception as e:
             logging.exception(f"Fail to delete {key}(prefix={prefix}) from etcd.\n%s", e)
             return None
