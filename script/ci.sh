@@ -4,5 +4,5 @@ image_name="kross"
 version="latest"
 
 docker build -t ${image_name}:${version} ${root_path}
-docker tag ${image_name}:${version} easzlab.io.local:5000/${image_name}:${version}
-docker push easzlab.io.local:5000/${image_name}:${version}
+docker tag ${image_name}:${version} calvincui/${image_name}:${version}
+docker push calvincui/${image_name}:${version}
